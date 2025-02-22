@@ -31,6 +31,21 @@ pub struct Filter {
     buckets: usize,
 }
 
+impl Clone for Filter {
+    fn clone(&self) -> Self {
+        let buf = unsafe {
+            let ptr = alloc_zeroed(Layout::from_size_align_unchecked(self.size, ALIGNMENT));
+            NonNull::new_unchecked(ptr)
+        };
+
+        Self {
+            buf,
+            size: self.size,
+            buckets: self.buckets,
+        }
+    }
+}
+
 impl Drop for Filter {
     fn drop(&mut self) {
         unsafe {
