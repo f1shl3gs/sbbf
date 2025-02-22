@@ -21,22 +21,17 @@ mod sse;
 const SALT: [u32; 8] = [
     0x47b6137b, 0x44974d91, 0x8824ad5b, 0xa2b7289d, 0x705495c7, 0x2df1424b, 0x9efc4947, 0x5c6bfb31,
 ];
+
 const ALIGNMENT: usize = 64;
 const BUCKET_SIZE: usize = 32;
 
-/// Given a value "word", produces an integer in [0,p) without division.
-#[inline(always)]
-fn fastrange(word: u32, p: u32) -> u32 {
-    ((u64::from(word) * u64::from(p)) >> 32) as u32
-}
-
-pub struct BloomFilter {
+pub struct Filter {
     buf: NonNull<u8>,
     size: usize,
     buckets: usize,
 }
 
-impl Drop for BloomFilter {
+impl Drop for Filter {
     fn drop(&mut self) {
         unsafe {
             dealloc(
@@ -47,7 +42,7 @@ impl Drop for BloomFilter {
     }
 }
 
-impl BloomFilter {
+impl Filter {
     pub fn new(bits: usize, keys: usize) -> Self {
         let len = bits * keys / 8;
         let len = ((len + ALIGNMENT / 2) / ALIGNMENT) * ALIGNMENT;
@@ -65,7 +60,7 @@ impl BloomFilter {
 }
 
 #[cfg(feature = "avx")]
-impl BloomFilter {
+impl Filter {
     #[inline]
     pub fn insert(&mut self, hash: u64) {
         unsafe {
@@ -80,7 +75,7 @@ impl BloomFilter {
 }
 
 #[cfg(feature = "sse")]
-impl BloomFilter {
+impl Filter {
     #[inline]
     pub fn insert(&mut self, hash: u64) {
         unsafe {
@@ -96,16 +91,18 @@ impl BloomFilter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use rand::Rng;
     use std::collections::HashSet;
+
+    use rand::Rng;
+
+    use super::*;
 
     #[test]
     fn simple() {
         let total = 1024 * 1024;
         let mut rng = rand::rng();
 
-        let mut filter = BloomFilter::new(64, total);
+        let mut filter = Filter::new(64, total);
         let mut hashes = HashSet::with_capacity(total);
 
         for _ in 0..total {
@@ -131,8 +128,49 @@ mod tests {
             }
         }
 
+        let ratio = fp as f64 / total as f64;
         println!("total: {}", total);
         println!("fp:    {}", fp);
-        println!("ratio: {}", fp as f64 / total as f64);
+        println!("ratio: {}", ratio);
+
+        assert!(ratio < 0.000001);
+    }
+
+    fn run(bits: usize, max_false_positive: f64) {
+        let keys = 1024 * 1024;
+        let mut rng = rand::rng();
+        let mut filter = Filter::new(bits, keys);
+        let mut hashes = HashSet::with_capacity(keys);
+
+        // insert
+        for _ in 0..keys {
+            let hash = rng.random();
+
+            hashes.insert(hash);
+            filter.insert(hash);
+            assert!(filter.contains(hash));
+        }
+
+        let mut fp = 0;
+        for k in hashes {
+            if !filter.contains(k) {
+                fp += 1;
+            }
+        }
+
+        let ratio = fp as f64 / keys as f64;
+        assert!(
+            ratio <= max_false_positive,
+            "false positive ratio: {} should less than {}",
+            ratio,
+            max_false_positive
+        );
+    }
+
+    #[test]
+    fn false_positive() {
+        run(24, 0.0002);
+        run(16, 0.002);
+        run(8, 0.02);
     }
 }
