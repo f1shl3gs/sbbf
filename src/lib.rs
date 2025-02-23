@@ -31,21 +31,6 @@ pub struct Filter {
     buckets: usize,
 }
 
-impl Clone for Filter {
-    fn clone(&self) -> Self {
-        let buf = unsafe {
-            let ptr = alloc_zeroed(Layout::from_size_align_unchecked(self.size, ALIGNMENT));
-            NonNull::new_unchecked(ptr)
-        };
-
-        Self {
-            buf,
-            size: self.size,
-            buckets: self.buckets,
-        }
-    }
-}
-
 impl Drop for Filter {
     fn drop(&mut self) {
         unsafe {
@@ -72,35 +57,34 @@ impl Filter {
 
         Self { buf, size, buckets }
     }
-}
 
-#[cfg(feature = "avx")]
-impl Filter {
-    #[inline]
-    pub fn insert(&mut self, hash: u64) {
+    /// Insert `hash` into the filter bits inside `buf`.
+    /// 
+    /// Return true if `hash` was already in the filter bits inside `buf`
+    #[inline(always)]
+    pub fn insert(&mut self, hash: u64) -> bool {
+        #[cfg(feature = "avx")]
         unsafe {
-            _ = avx2::insert(self.buf.as_ptr(), self.buckets, hash);
+            avx2::insert(self.buf.as_ptr(), self.buckets, hash)
+        }
+
+        #[cfg(feature = "sse")]
+        unsafe {
+            sse::insert(self.buf.as_ptr(), self.buckets, hash)
         }
     }
 
-    #[inline]
+    /// Check if filter bits in `buf` contains `hash`.
+    #[inline(always)]
     pub fn contains(&self, hash: u64) -> bool {
-        unsafe { avx2::contains(self.buf.as_ptr(), self.buckets, hash) }
-    }
-}
-
-#[cfg(feature = "sse")]
-impl Filter {
-    #[inline]
-    pub fn insert(&mut self, hash: u64) {
+        #[cfg(feature = "avx")]
         unsafe {
-            _ = sse::insert(self.buf.as_ptr(), self.buckets, hash);
+            avx2::contains(self.buf.as_ptr(), self.buckets, hash)
         }
-    }
-
-    #[inline]
-    pub fn contains(&self, hash: u64) -> bool {
-        unsafe { sse::contains(self.buf.as_ptr(), self.buckets, hash) }
+        #[cfg(feature = "sse")]
+        unsafe {
+            sse::contains(self.buf.as_ptr(), self.buckets, hash)
+        }
     }
 }
 
