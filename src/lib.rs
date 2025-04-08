@@ -3,10 +3,9 @@
 use std::alloc::{Layout, alloc_zeroed, dealloc};
 use std::ptr::NonNull;
 
-#[cfg(feature = "avx")]
-mod avx2;
-#[cfg(feature = "sse")]
-mod sse;
+#[cfg_attr(feature = "avx", path = "avx2.rs")]
+#[cfg_attr(feature = "sse", path = "sse.rs")]
+mod implement;
 
 #[cfg(any(
     target_arch = "x86_64",
@@ -59,32 +58,17 @@ impl Filter {
     }
 
     /// Insert `hash` into the filter bits inside `buf`.
-    /// 
+    ///
     /// Return true if `hash` was already in the filter bits inside `buf`
     #[inline(always)]
     pub fn insert(&mut self, hash: u64) -> bool {
-        #[cfg(feature = "avx")]
-        unsafe {
-            avx2::insert(self.buf.as_ptr(), self.buckets, hash)
-        }
-
-        #[cfg(feature = "sse")]
-        unsafe {
-            sse::insert(self.buf.as_ptr(), self.buckets, hash)
-        }
+        unsafe { implement::insert(self.buf.as_ptr(), self.buckets, hash) }
     }
 
     /// Check if filter bits in `buf` contains `hash`.
     #[inline(always)]
     pub fn contains(&self, hash: u64) -> bool {
-        #[cfg(feature = "avx")]
-        unsafe {
-            avx2::contains(self.buf.as_ptr(), self.buckets, hash)
-        }
-        #[cfg(feature = "sse")]
-        unsafe {
-            sse::contains(self.buf.as_ptr(), self.buckets, hash)
-        }
+        unsafe { implement::contains(self.buf.as_ptr(), self.buckets, hash) }
     }
 }
 

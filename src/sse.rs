@@ -8,7 +8,6 @@ use core::arch::x86_64::{
 use super::SALT;
 
 // taken and adapted from https://stackoverflow.com/questions/57454416/sse-integer-2n-powers-of-2-for-32-bit-integers-without-avx2
-#[target_feature(enable = "sse4.1")]
 #[inline]
 unsafe fn power_of_two(b: __m128i) -> __m128i {
     let exp = _mm_add_epi32(b, _mm_set1_epi32(127));
@@ -16,7 +15,6 @@ unsafe fn power_of_two(b: __m128i) -> __m128i {
     _mm_cvtps_epi32(f)
 }
 
-#[target_feature(enable = "sse4.1")]
 #[inline]
 unsafe fn make_mask(hash: u32) -> (__m128i, __m128i) {
     let salt = (

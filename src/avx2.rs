@@ -7,7 +7,6 @@ use core::arch::x86_64::{
 
 use super::SALT;
 
-#[target_feature(enable = "avx2")]
 #[inline]
 unsafe fn make_mask(hash: u32) -> __m256i {
     let salt = _mm256_setr_epi32(
@@ -27,7 +26,6 @@ unsafe fn make_mask(hash: u32) -> __m256i {
     _mm256_sllv_epi32(_mm256_set1_epi32(1), acc)
 }
 
-#[target_feature(enable = "avx2")]
 #[inline]
 pub unsafe fn contains(buf: *const u8, buckets: usize, hash: u64) -> bool {
     let bucket_idx =
@@ -38,7 +36,6 @@ pub unsafe fn contains(buf: *const u8, buckets: usize, hash: u64) -> bool {
     _mm256_testc_si256(_mm256_load_si256(bucket), mask) != 0
 }
 
-#[target_feature(enable = "avx2")]
 #[inline]
 pub unsafe fn insert(buf: *mut u8, buckets: usize, hash: u64) -> bool {
     let bucket_idx =
